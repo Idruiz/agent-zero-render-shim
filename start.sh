@@ -5,25 +5,27 @@ echo "[shim] Starting. BRANCH=${BRANCH:-main}  PORT=${PORT:-<unset>}  $(date -Is
 # 1) Boot Agent-Zero in the background
 (/exe/initialize.sh "${BRANCH:-main}" || true) &
 
-# 2) Wait for Agent-Zero to be ready (check common ports)
+# 2) Wait for Agent-Zero to start and detect its port
 echo "[shim] Waiting for Agent-Zero to start..."
 AGENT_PORT=""
 for i in {1..30}; do
   sleep 2
-  # Check common ports Agent-Zero might use
-  for port in 80 8080 7860 5000 3000 8000 9000; do
-    if nc -z 127.0.0.1 $port 2>/dev/null; then
-      AGENT_PORT=$port
-      echo "[shim] Found Agent-Zero running on port $port"
-      break 2
-    fi
-  done
+  
+  # Look for any listening port on 127.0.0.1 (excluding SSH on port 22)
+  DETECTED=$(netstat -tlnp 2>/dev/null | grep '127.0.0.1:' | grep -v ':22 ' | awk '{print $4}' | cut -d: -f2 | head -n1)
+  
+  if [ -n "$DETECTED" ]; then
+    AGENT_PORT=$DETECTED
+    echo "[shim] Found Agent-Zero running on port $AGENT_PORT"
+    break
+  fi
+  
   echo "[shim] Still waiting... (attempt $i/30)"
 done
 
 if [ -z "$AGENT_PORT" ]; then
-  echo "[shim] ERROR: Could not find Agent-Zero on any expected port!"
-  echo "[shim] Checking what's actually listening:"
+  echo "[shim] ERROR: Could not find Agent-Zero!"
+  echo "[shim] All listening ports:"
   netstat -tlnp || ss -tlnp || true
   exit 1
 fi
@@ -53,13 +55,11 @@ http {
     listen       ${PORT} default_server;
     server_name  _;
 
-    # Health check
     location = /healthz {
       return 200 'ok';
       add_header Content-Type text/plain;
     }
 
-    # Proxy to Agent-Zero
     location / {
       proxy_pass http://a0_upstream;
       proxy_http_version 1.1;
@@ -76,6 +76,6 @@ http {
 }
 NGX
 
-echo "[shim] Nginx config generated for Agent-Zero on port $AGENT_PORT, nginx listening on port $PORT"
+echo "[shim] Nginx configured: Agent-Zero on 127.0.0.1:$AGENT_PORT → nginx on 0.0.0.0:$PORT"
 nginx -t
 exec nginx -g 'daemon off;'
