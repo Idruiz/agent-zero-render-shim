@@ -1,4 +1,4 @@
-# Force rebuild 2025-10-22
+# Force rebuild V4
 FROM agent0ai/agent-zero:latest
 
 # Prevent any interactive prompts during package installation
