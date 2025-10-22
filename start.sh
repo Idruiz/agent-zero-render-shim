@@ -3,7 +3,7 @@ set -euo pipefail
 echo "[shim] Starting. BRANCH=${BRANCH:-main}  PORT=${PORT:-<unset>}  $(date -Is)" >&2
 
 # 1) Boot Agent-Zero in the background
-(/exe/initialize.sh "${BRANCH:-main}" || true) &
+(/exe/initialize.sh "${BRANCH:-main}" 2>&1 | sed 's/^/[init] /' || echo "[init] Failed with exit code $?") &
 
 # 2) Wait for Agent-Zero to start and detect its port
 echo "[shim] Waiting for Agent-Zero to start..."
